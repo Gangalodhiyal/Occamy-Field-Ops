@@ -1,192 +1,91 @@
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
+const express = require('express');   // Express framework ko import kiya web server banane ke liye
+const cors = require('cors');   // CORS ko import kiya taaki frontend (React) backend se connect ho sake
+const fs = require('fs');    // File System module import kiya data (JSON) files ko read/write karne ke liye
+const path = require('path');    // Path module import kiya files aur directories ka rasta manage karne ke liye
 
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+const app = express();   // Express app initialize ki
 
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
+// Frontend (localhost:3000) ko backend se request bhejne ki permission di
+app.use(cors({ origin: "http://localhost:3000", credentials: true })); 
 
+// JSON data ki limit 15mb set ki taaki badi photos (Base64) server receive kar sake
+app.use(express.json({ limit: '15mb' })); 
 
-const express = require("express");
-const app = express();
+// activities.json file ka path set kiya jahan saara data store hoga
+const DATA_FILE = path.join(__dirname, 'activities.json');
 
-app.use(express.json());
+// Photos store karne ke liye folder ka path define kiya
+const PHOTO_DIR = path.join(__dirname, 'photos');
 
-let currentOfficer = null;
-let currentDay = null;
-let meetings = [];
+// Agar 'photos' folder nahi hai, toh use create kar lo
+if (!fs.existsSync(PHOTO_DIR)) fs.mkdirSync(PHOTO_DIR);
 
-/* ================= LOGIN ================= */
-app.post("/api/login", (req, res) => {
-  const { officerId, name } = req.body;
+// 'photos' folder ko public kiya taaki dashboard par images dikhayi ja sakein
+app.use('/photos', express.static(PHOTO_DIR));
 
-  if (!officerId || !name) {
-    return res.status(400).json({
-      message: "Officer ID and name required"
-    });
-  }
+// Ek temporary variable jo 'Day Start' ke waqt odometer reading ko server ki memory mein rakhega
+let startOdometer = 0;
 
-  currentOfficer = {
-    officerId,
-    name,
-    loginTime: new Date()
-  };
-
-  res.json({
-    message: "Login successful",
-    officer: currentOfficer
-  });
-});
-
-/* ================= START DAY ================= */
-app.post("/api/activity/start-day", (req, res) => {
-
-  // ❌ Start day without login
-  if (!currentOfficer) {
-    return res.status(401).json({
-      message: "Login required before starting day"
-    });
-  }
-
-  // ❌ Double start blocked
-  if (currentDay) {
-    return res.status(400).json({
-      message: "Day already started"
-    });
-  }
-
-  const { lat, lng } = req.body;
-
-  // ❌ GPS mandatory
-  if (lat == null || lng == null) {
-    return res.status(400).json({
-      message: "GPS required to start day"
-    });
-  }
-
-  currentDay = {
-    startTime: new Date(),       // ✅ auto time
-    startLocation: { lat, lng }  // ✅ auto GPS
-  };
-
-  meetings = [];
-
-  res.json({
-    message: "Day started successfully",
-    startTime: currentDay.startTime
-  });
-});
-
-/* ================= LOG MEETING ================= */
-app.post("/api/activity/log-meeting", (req, res) => {
-
-  // ❌ Meeting without login
-  if (!currentOfficer) {
-    return res.status(401).json({
-      message: "Login required"
-    });
-  }
-
-  // ❌ Meeting without start day
-  if (!currentDay) {
-    return res.status(400).json({
-      message: "Start day before logging meeting"
-    });
-  }
-
-  const { type, lat, lng, notes, photo } = req.body;
-
-  // ❌ Wrong meeting type
-  const allowedTypes = ["Farmer", "Distributor"];
-  if (!allowedTypes.includes(type)) {
-    return res.status(400).json({
-      message: "Meeting type must be Farmer or Distributor"
-    });
-  }
-
-  // ❌ GPS mandatory
-  if (lat == null || lng == null) {
-    return res.status(400).json({
-      message: "GPS required for meeting"
-    });
-  }
-
-  const meeting = {
-    type,
-    location: { lat, lng },
-    notes: notes || "",
-    photo: photo || null,   // ✅ photo proof supported (dummy)
-    time: new Date()        // ✅ auto timestamp
-  };
-
-  meetings.push(meeting);
-
-  res.json({
-    message: "Meeting logged successfully",
-    meeting
-  });
-});
-
-/* ================= END DAY ================= */
-app.post("/api/activity/end-day", (req, res) => {
-
-  // ❌ End day without login
-  if (!currentOfficer) {
-    return res.status(401).json({
-      message: "Login required"
-    });
-  }
-
-  let totalDistance = 0;
-
-for (let i = 1; i < meetings.length; i++) {
-  totalDistance += calculateDistance(
-    meetings[i - 1].location.lat,
-    meetings[i - 1].location.lng,
-    meetings[i].location.lat,
-    meetings[i].location.lng
-  );
-}
-
-  // ❌ End without start
-  if (!currentDay) {
-    return res.status(400).json({
-      message: "Day not started"
-    });
-  }
-
-  const endTime = new Date();
-
-  const summary = {
-  officerName: currentOfficer.name,
-  startTime: currentDay.startTime,
-  endTime,
-  totalMeetings: meetings.length,
-  totalDistance: totalDistance.toFixed(2) + " km"
+// activities.json se data read karne ka function
+const readData = () => {
+    try {
+        // Agar file exist karti hai toh JSON format mein return karo, nahi toh khali list [] bhejo
+        return fs.existsSync(DATA_FILE) ? JSON.parse(fs.readFileSync(DATA_FILE)) : [];
+    } catch (e) { return []; }
 };
 
+// Data ko wapas activities.json file mein save karne ka function
+const saveData = (data) => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 
-  currentDay = null;
-  meetings = [];
+// POST API: Jab koi officer app se activity submit karta hai
+app.post('/api/activities', (req, res) => {
+    try {
+        // Request body se saari zaroori fields nikali (Destructuring)
+        const { type, payload, officer, lat, lng, village, photo } = req.body;
 
-  res.json({
-    message: "Day ended successfully",
-    summary
-    
-  });
-  
+        const allData = readData();   // Purana saara data read kiya
+        let distanceToday = 0;   // Travel distance calculate karne ke liye variable
+
+        // ODOMETER CALCULATION LOGIC:
+        if (type === 'Day Start') {
+            // Agar din shuru hua hai, toh odometer reading save kar lo
+            startOdometer = Number(payload.odometer) || 0;
+        } 
+        else if (type === 'Day End') {
+            // Agar din khatam hua hai, toh current reading se start reading minus karke total distance nikal li
+            const endReading = Number(payload.odometer) || 0;
+            distanceToday = endReading - startOdometer;
+        }
+
+        // Ek naya object banaya jo ek activity ki poori details rakhta hai
+        const newEntry = {
+            id: Date.now(),    // Unique ID banane ke liye current timestamp use kiya
+            officer: officer || "Unknown",    // Officer ka naam
+            type: type,       // Activity ka type (Meeting/Sale/Start/End)
+            location: { lat: lat || 0, lng: lng || 0 },       // GPS coordinates
+            village: village || "N/A",    // Gaon ka naam
+            payload: payload || {},    // Additional info (jaise odometer ya attendees)
+            distanceToday: distanceToday,   // Calculate kiya gaya total safar
+            photo: photo || null,   // Proof image
+            timestamp: new Date().toISOString(), // Entry ka exact time
+            date: new Date().toLocaleDateString('en-IN') // Bharat ke format mein date
+        };
+
+        allData.push(newEntry); // Nayi entry ko purane data list mein joda
+        saveData(allData); // Poori list ko wapas file mein save kar diya
+        
+        // Response bheja ki data save ho gaya hai
+        res.json({ success: true, distance: distanceToday });
+    } catch (err) {
+        console.error("Server Error:", err); // Agar koi error aaye toh console par print karo
+        res.status(500).json({ error: "Internal Server Error" }); // Frontend ko error bhej do
+    }
 });
 
-/* ================= SERVER ================= */
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
+// GET API: Dashboard ke liye saara data fetch karne ka route
+app.get("/api/activities", (req, res) => {
+    res.json(readData()); // Jitna bhi data save hai wo JSON format mein bhej diya
 });
 
-
-
+// Server ko port 5000 par start kiya
+app.listen(5000, () => console.log(" Server running on port 5000"));
