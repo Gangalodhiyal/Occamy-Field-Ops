@@ -1,26 +1,26 @@
-import React from 'react'; // React library ko import kiya component banane ke liye
+import React from 'react'; // Import React library to create the functional component
 
 const AdminDashboard = ({ stats }) => {
-  // CALCULATIONS (Dashboard ke top cards ke liye data process karna)
+  // --- CALCULATIONS (Processing data for the dashboard metrics) ---
 
-  // 'stats' array mein se wo entries filter ki jinke 'type' mein 'Meeting' word aata hai aur unki ginti (length) li
+  // Filter entries that include the word 'Meeting' in their type and get the total count
   const totalMeetings = stats.filter(s => s.type && s.type.includes('Meeting')).length;
   
-  // Wo 'Sale' entries nikaali jiska mode B2B hai (toUpperCase() se case-sensitivity ki problem solve ki)
+  // Filter 'Sale' entries where the mode is 'B2B' (using toUpperCase to handle case-sensitivity)
   const b2bSales = stats.filter(s => s.type === 'Sale' && s.payload?.mode?.toUpperCase() === 'B2B').length;
   
-  // Wo 'Sale' entries nikaali jiska mode B2C hai
+  // Filter 'Sale' entries where the mode is 'B2C'
   const b2cSales = stats.filter(s => s.type === 'Sale' && s.payload?.mode?.toUpperCase() === 'B2C').length;
   
-  // Total Distance: Sabhi entries ki 'distanceToday' ko jod kar (reduce function se) total safar nikala
+  // Total Distance: Use the reduce function to sum up all 'distanceToday' values from the stats array
   const totalDistance = stats.reduce((acc, s) => acc + (Number(s.distanceToday) || 0), 0);
 
   return (
-    // Dashboard ka main container (light background aur padding ke saath)
+    // Main dashboard container with professional padding, background, and typography
     <div style={{ padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <h2 style={{color: '#2c3e50'}}>🛰️ Occamy Central Control</h2>
       
-      {/* Top Cards Section: Chaar cards jo key metrics (Distance, Meetings, Sales) dikhate hain */}
+      {/* Top Summary Cards: Displays key performance indicators (KPIs) */}
       <div style={{ display: 'flex', gap: '15px', marginBottom: '25px' }}>
         <div style={cardStyle}><h4>Total Distance</h4><p>{totalDistance} km</p></div>
         <div style={cardStyle}><h4>Meetings</h4><p>{totalMeetings}</p></div>
@@ -28,12 +28,12 @@ const AdminDashboard = ({ stats }) => {
         <div style={cardStyle}><h4>B2C Sales</h4><p>{b2cSales}</p></div>
       </div>
 
-      {/* Main Table Container: Jisme verifiable activities ka log dikhega */}
+      {/* Ground Activity Log: A table to display verifiable field activities */}
       <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
         <h3>Ground Activity Log (Verifiable)</h3>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            {/* Table Header: Problem Statement (PF) ki requirement ke according columns */}
+            {/* Table Header: Columns aligned with the Hackathon's verification requirements */}
             <tr style={{background: '#ecf0f1', textAlign: 'left'}}>
               <th style={tdStyle}>Date</th>
               <th style={tdStyle}>Officer</th>
@@ -45,24 +45,25 @@ const AdminDashboard = ({ stats }) => {
             </tr>
           </thead>
           <tbody>
-            {/* stats array ko loop (map) karke table rows generate ki */}
+            {/* Map through the stats array to dynamically generate table rows */}
             {stats.map(s => (
               <tr key={s.id || Math.random()} style={{borderBottom: '1px solid #eee'}}>
                 <td style={tdStyle}>{s.date || 'N/A'}</td>
                 <td style={tdStyle}>{s.officer || 'N/A'}</td>
                 <td style={tdStyle}><strong>{s.type}</strong></td>
-                {/* Distance sirf tab dikhega jab value ho, warna '-' dikhega */}
+                
+                {/* Distance Logic: Display travel distance if available, otherwise show a hyphen */}
                 <td style={tdStyle}>{s.distanceToday ? `${s.distanceToday} km` : '-'}</td>
                 
-                {/* VILLAGE LOGIC: Agar seedha village nahi hai toh payload ke andar check kiya */}
+                {/* Village Logic: Fallback to payload data if the primary village field is empty */}
                 <td style={tdStyle}>{s.village || s.payload?.village || 'N/A'}</td>
                 
-                {/* GPS LOGIC: Latitude aur Longitude ko 2 decimal points tak fix karke dikhaya */}
+                {/* GPS Logic: Display Latitude and Longitude fixed to 2 decimal places for better readability */}
                 <td style={tdStyle}>
                   {s.location?.lat ? `${s.location.lat.toFixed(2)}, ${s.location.lng.toFixed(2)}` : 'N/A'}
                 </td>
                 
-                {/* PROOF LOGIC: Agar photo Base64 hai ya server URL, dono ko link mein convert kiya */}
+                {/* Proof Logic: Render a clickable link for photos (handles both Base64 and Server URLs) */}
                 <td style={tdStyle}>
                   {s.photo ? (
                     <a 
@@ -84,8 +85,8 @@ const AdminDashboard = ({ stats }) => {
   );
 };
  
-// --- STYLING (UI ko professional banane ke liye CSS-in-JS) ---
+// --- STYLING (Professional CSS-in-JS objects for UI consistency) ---
 const cardStyle = { flex: 1, padding: '20px', background: '#fff', borderRadius: '12px', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' };
 const tdStyle = { padding: '12px' };
 
-export default AdminDashboard; // Component ko export kiya taaki App.js mein use ho sake
+export default AdminDashboard; // Export the component for use in App.js

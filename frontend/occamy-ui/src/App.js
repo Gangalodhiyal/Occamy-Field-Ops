@@ -1,64 +1,64 @@
-import React, { useState, useEffect } from 'react'; // React aur hooks ko import kiya UI manage karne ke liye
-import axios from 'axios'; // API calls karne ke liye axios library ka use kiya
-import AdminDashboard from './AdminDashboard'; // Admin Dashboard component ko import kiya
+import React, { useState, useEffect } from 'react'; // Import React and hooks for UI state management
+import axios from 'axios'; // Import axios library for making API calls
+import AdminDashboard from './AdminDashboard'; // Import the Admin Dashboard component
 
-// Backend API ka base URL set kiya (local server port 5000)
+// Configure Backend API base URL (connecting to local server on port 5000)
 const api = axios.create({ baseURL: 'http://localhost:5000/api' });
 
 function App() {
-  // Application ki states define ki (Officer name, Login status, etc.)
-  const [officer, setOfficer] = useState(localStorage.getItem('officer') || ""); // Officer ka naam storage se liya
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('officer')); // Login check kiya
-  const [dayStarted, setDayStarted] = useState(false); // Field work shuru hua ya nahi
-  const [village, setVillage] = useState(""); // Current gaon ka naam
-  const [photo, setPhoto] = useState(null); // Captured photo ki state
-  const [view, setView] = useState('officer'); // Kaunsi screen dikhani hai (App ya Dashboard)
-  const [stats, setStats] = useState([]); // Saari activities ka data store karne ke liye
-  const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'officer'); // User ka role (admin/officer)
+  // Define application states (Officer name, Login status, and tracking variables)
+  const [officer, setOfficer] = useState(localStorage.getItem('officer') || ""); // Retrieve officer name from local storage
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('officer')); // Check if user is already logged in
+  const [dayStarted, setDayStarted] = useState(false); // Track if the field work session has started
+  const [village, setVillage] = useState(""); // State to store the current village name
+  const [photo, setPhoto] = useState(null); // State to store the captured proof photo
+  const [view, setView] = useState('officer'); // Toggle between 'officer' app view and 'admin' dashboard view
+  const [stats, setStats] = useState([]); // Array to store all activity data for the dashboard
+  const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'officer'); // Store user role (admin/officer)
 
-  // Backend se saara activity data load karne ka function
+  // Function to fetch all activity data from the backend
   const loadStats = async () => {
     try {
-      const res = await api.get('/activities'); // GET request bheji
-      setStats(res.data); // Data ko state mein save kiya
+      const res = await api.get('/activities'); // Send GET request to retrieve logs
+      setStats(res.data); // Save the retrieved data into state
     } catch (err) {
       console.error("Error loading stats:", err);
     }
   };
 
-  // Jab bhi user login kare, stats automatic load ho jayein
+  // Automatically load statistics whenever the user logs in
   useEffect(() => {
     if (isLoggedIn) loadStats();
   }, [isLoggedIn]);
 
-  // GPS Coordinates (Latitude/Longitude) fetch karne ka function
+  // Function to fetch precise GPS Coordinates (Latitude and Longitude)
   const getLoc = () => new Promise((res, rej) => {
     navigator.geolocation.getCurrentPosition(
-      p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), // Success: location bheji
-      () => rej("GPS Required"), // Error: GPS on karne ko kaha
-      { enableHighAccuracy: true } // Accuracy high rakhi
+      p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), // On Success: Return location object
+      () => rej("GPS Required"), // On Error: Prompt user to enable GPS
+      { enableHighAccuracy: true } // Request high-accuracy coordinates
     );
   });
 
-  // Camera se photo capture karne ya file select karne ka function
+  // Function to handle camera capture and file selection
   const handleCapture = (e) => {
     const file = e.target.files[0];
     const reader = new FileReader();
-    reader.onloadend = () => setPhoto(reader.result); // Photo ko Base64 format mein badla
+    reader.onloadend = () => setPhoto(reader.result); // Convert the image file to a Base64 string
     if (file) reader.readAsDataURL(file);
   };
 
-  // Har ek activity (Meeting/Sale) ko backend par submit karne ka main function
+  // Main function to submit any activity (Meeting, Sale, etc.) to the backend
   const submitLog = async (type, payload) => {
-    // Validation: Meeting aur Sales ke liye photo aur village mandatory hain
+    // Validation: Mandatory Photo and Village name for meetings and sales
     if (type !== 'Day Start' && type !== 'Day End') {
       if (!photo || !village) return alert("Photo and Village are mandatory!");
     }
 
     try {
-      const loc = await getLoc(); // Pehle location li
+      const loc = await getLoc(); // Fetch current GPS location before submission
       
-      // Backend ko saara data POST kiya
+      // POST data to backend including activity details and location proof
       await api.post('/activities', { 
         type, 
         lat: loc.lat, 
@@ -66,33 +66,33 @@ function App() {
         village: village || 'N/A', 
         officer, 
         payload, 
-        photo, // Photo Base64 string mein ja rahi hai
-        date: new Date().toLocaleDateString('en-IN') // Bharat ke format mein date
+        photo, // Transmitting photo as a Base64 encoded string
+        date: new Date().toLocaleDateString('en-IN') // Store date in localized Indian format
       });
 
       alert(`${type} recorded successfully!`);
       
-      // Submit ke baad form fields reset ki
+      // Reset form fields after successful submission
       setPhoto(null); 
       setVillage(""); 
-      loadStats(); // Dashboard data update kiya
+      loadStats(); // Refresh dashboard data
     } catch (err) { 
       alert("Error: " + err.message); 
     }
   };
 
-  // Login handle karne ka function
+  // Function to handle user login and role assignment
   const handleLogin = () => {
     if (!officer) return alert("Please enter your name");
-    // Agar naam 'admin' hai toh admin role diya, warna officer
+    // Assign 'admin' role if name is "admin", otherwise default to 'officer'
     const role = officer.toLowerCase() === 'admin' ? 'admin' : 'officer';
-    localStorage.setItem('officer', officer); // Storage mein naam save kiya
-    localStorage.setItem('role', role); // Role save kiya
+    localStorage.setItem('officer', officer); // Persist name in local storage
+    localStorage.setItem('role', role); // Persist role in local storage
     setUserRole(role);
     setIsLoggedIn(true);
   };
 
-  // Agar user logged in nahi hai, toh Login Screen dikhao
+  // Render Login Screen if user is not authenticated
   if (!isLoggedIn) return (
     <div style={styles.container}>
       <h2> OCCAMY LOGIN</h2>
@@ -106,13 +106,13 @@ function App() {
     </div>
   );
 
-  // Logged in hone par Navigation aur Screens dikhao
+  // Render Main Navigation and Screens upon successful login
   return (
     <div>
-      {/* Top Navigation Bar */}
+      {/* Top Navigation Bar Component */}
       <nav style={styles.nav}>
         <button style={navBtn} onClick={() => setView('officer')}> APP</button>
-        {/* Dashboard button sirf admin ko dikhega */}
+        {/* Render Dashboard button exclusively for Admin users */}
         {userRole === 'admin' && (
           <button style={navBtn} onClick={() => setView('admin')}> DASHBOARD</button>
         )}
@@ -122,11 +122,11 @@ function App() {
         > LOGOUT</button>
       </nav>
 
-      {/* View logic: Officer App dikhani hai ya Admin Dashboard */}
+      {/* View Logic: Toggle between Field Officer App and Centralized Admin Dashboard */}
       {view === 'officer' ? (
         <div style={styles.container}>
           <h3>Officer: {officer}</h3>
-          {/* Day Start Logic: Odometer reading leta hai */}
+          {/* Day Start Logic: Captures initial odometer reading */}
           {!dayStarted ? (
             <button style={styles.btn} onClick={() => { 
               const reading = prompt("Start Odometer Reading:"); 
@@ -136,12 +136,12 @@ function App() {
               }
             }}>START DAY</button>
           ) : (
-            // Day Start hone ke baad ki saari activities
+            // Form for field activities after day has started
             <div style={styles.form}>
               <input type="file" accept="image/*" capture="environment" onChange={handleCapture} />
               <input style={styles.input} placeholder="Current Village" value={village} onChange={e => setVillage(e.target.value)} />
               
-              {/* Meeting aur Sale buttons */}
+              {/* Field Activity Action Buttons */}
               <button style={styles.actionBtn} onClick={() => {
                 const name = prompt("Farmer Name?");
                 const cat = prompt("Category (Farmer/Seller/Influencer)?");
@@ -167,7 +167,7 @@ function App() {
                 if(qty) submitLog('Sample', { qty, purpose });
               }}> GIVE SAMPLE</button>
 
-              {/* Day End Logic: Odometer reading lekar distance calculate karta hai */}
+              {/* Day End Logic: Captures final odometer and calculates total distance */}
               <button style={styles.endBtn} onClick={() => { 
                 const reading = prompt("End Odometer Reading:"); 
                 if(reading) {
@@ -183,7 +183,7 @@ function App() {
   );
 }
 
-// Styling Objects (UI design ke liye)
+// Global Styling Objects for UI Consistency
 const navBtn = { background: 'none', border: '1px solid white', color: 'white', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' };
 
 const styles = {

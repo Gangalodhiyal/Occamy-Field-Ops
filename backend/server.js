@@ -1,91 +1,95 @@
-const express = require('express');   // Express framework ko import kiya web server banane ke liye
-const cors = require('cors');   // CORS ko import kiya taaki frontend (React) backend se connect ho sake
-const fs = require('fs');    // File System module import kiya data (JSON) files ko read/write karne ke liye
-const path = require('path');    // Path module import kiya files aur directories ka rasta manage karne ke liye
+const express = require('express');   // Import Express framework to create the web server
+const cors = require('cors');         // Import CORS to allow communication between Frontend (React) and Backend
+const fs = require('fs');             // Import File System module to handle JSON file read/write operations
+const path = require('path');         // Import Path module to manage file and directory paths
 
-const app = express();   // Express app initialize ki
+const app = express();                // Initialize the Express application
 
-// Frontend (localhost:3000) ko backend se request bhejne ki permission di
+// Enable CORS for the frontend running on localhost:3000 and allow credentials
 app.use(cors({ origin: "http://localhost:3000", credentials: true })); 
 
-// JSON data ki limit 15mb set ki taaki badi photos (Base64) server receive kar sake
+// Set JSON payload limit to 15mb to handle large Base64 encoded images from the field
 app.use(express.json({ limit: '15mb' })); 
 
-// activities.json file ka path set kiya jahan saara data store hoga
+// Define the path for the JSON file where all activity data will be persisted
 const DATA_FILE = path.join(__dirname, 'activities.json');
 
-// Photos store karne ke liye folder ka path define kiya
+// Define the directory path for storing uploaded proof photos
 const PHOTO_DIR = path.join(__dirname, 'photos');
 
-// Agar 'photos' folder nahi hai, toh use create kar lo
+// Create the 'photos' directory if it does not already exist
 if (!fs.existsSync(PHOTO_DIR)) fs.mkdirSync(PHOTO_DIR);
 
-// 'photos' folder ko public kiya taaki dashboard par images dikhayi ja sakein
+// Serve the 'photos' folder as a static directory to make images accessible on the dashboard
 app.use('/photos', express.static(PHOTO_DIR));
 
-// Ek temporary variable jo 'Day Start' ke waqt odometer reading ko server ki memory mein rakhega
+// Temporary server-side variable to track odometer reading during the 'Day Start' event
 let startOdometer = 0;
 
-// activities.json se data read karne ka function
+/**
+ * Function to read data from the local JSON file.
+ * Returns an array of activities or an empty array if the file doesn't exist.
+ */
 const readData = () => {
     try {
-        // Agar file exist karti hai toh JSON format mein return karo, nahi toh khali list [] bhejo
         return fs.existsSync(DATA_FILE) ? JSON.parse(fs.readFileSync(DATA_FILE)) : [];
     } catch (e) { return []; }
 };
 
-// Data ko wapas activities.json file mein save karne ka function
+/**
+ * Function to write/save updated data back to the local JSON file.
+ */
 const saveData = (data) => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 
-// POST API: Jab koi officer app se activity submit karta hai
+// POST Route: Triggered when an officer submits a new activity from the mobile app
 app.post('/api/activities', (req, res) => {
     try {
-        // Request body se saari zaroori fields nikali (Destructuring)
+        // Destructure required fields from the request body
         const { type, payload, officer, lat, lng, village, photo } = req.body;
 
-        const allData = readData();   // Purana saara data read kiya
-        let distanceToday = 0;   // Travel distance calculate karne ke liye variable
+        const allData = readData();   // Fetch existing data from the file
+        let distanceToday = 0;        // Variable to store calculated travel distance
 
-        // ODOMETER CALCULATION LOGIC:
+        // BUSINESS LOGIC: Odometer Calculation
         if (type === 'Day Start') {
-            // Agar din shuru hua hai, toh odometer reading save kar lo
+            // Capture initial odometer reading when the work day begins
             startOdometer = Number(payload.odometer) || 0;
         } 
         else if (type === 'Day End') {
-            // Agar din khatam hua hai, toh current reading se start reading minus karke total distance nikal li
+            // Calculate total distance by subtracting start reading from the end reading
             const endReading = Number(payload.odometer) || 0;
             distanceToday = endReading - startOdometer;
         }
 
-        // Ek naya object banaya jo ek activity ki poori details rakhta hai
+        // Create a structured activity entry object
         const newEntry = {
-            id: Date.now(),    // Unique ID banane ke liye current timestamp use kiya
-            officer: officer || "Unknown",    // Officer ka naam
-            type: type,       // Activity ka type (Meeting/Sale/Start/End)
-            location: { lat: lat || 0, lng: lng || 0 },       // GPS coordinates
-            village: village || "N/A",    // Gaon ka naam
-            payload: payload || {},    // Additional info (jaise odometer ya attendees)
-            distanceToday: distanceToday,   // Calculate kiya gaya total safar
-            photo: photo || null,   // Proof image
-            timestamp: new Date().toISOString(), // Entry ka exact time
-            date: new Date().toLocaleDateString('en-IN') // Bharat ke format mein date
+            id: Date.now(),                          // Generate a unique ID using current timestamp
+            officer: officer || "Unknown",           // Name of the field officer
+            type: type,                              // Category of action (Meeting/Sale/Start/End)
+            location: { lat: lat || 0, lng: lng || 0 }, // Verified GPS coordinates
+            village: village || "N/A",               // Name of the target village
+            payload: payload || {},                  // Additional dynamic data (e.g., attendees)
+            distanceToday: distanceToday,            // Calculated distance (populated on Day End)
+            photo: photo || null,                    // Base64 proof of physical presence
+            timestamp: new Date().toISOString(),     // Precise ISO timestamp
+            date: new Date().toLocaleDateString('en-IN') // Indian localized date format
         };
 
-        allData.push(newEntry); // Nayi entry ko purane data list mein joda
-        saveData(allData); // Poori list ko wapas file mein save kar diya
+        allData.push(newEntry);       // Append the new entry to the data array
+        saveData(allData);            // Persist the updated array to the JSON file
         
-        // Response bheja ki data save ho gaya hai
+        // Respond with success and the calculated distance for UI confirmation
         res.json({ success: true, distance: distanceToday });
     } catch (err) {
-        console.error("Server Error:", err); // Agar koi error aaye toh console par print karo
-        res.status(500).json({ error: "Internal Server Error" }); // Frontend ko error bhej do
+        console.error("Server Error:", err);         // Log errors to server console for debugging
+        res.status(500).json({ error: "Internal Server Error" }); // Send error response to frontend
     }
 });
 
-// GET API: Dashboard ke liye saara data fetch karne ka route
+// GET Route: Fetch all recorded activities for the Admin Dashboard
 app.get("/api/activities", (req, res) => {
-    res.json(readData()); // Jitna bhi data save hai wo JSON format mein bhej diya
+    res.json(readData());             // Return the entire database as a JSON response
 });
 
-// Server ko port 5000 par start kiya
-app.listen(5000, () => console.log(" Server running on port 5000"));
+// Start the server on Port 5000
+app.listen(5000, () => console.log("Server running on port 5000"));
