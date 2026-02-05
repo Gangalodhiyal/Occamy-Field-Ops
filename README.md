@@ -5,6 +5,17 @@ Project Context :
 
 Developed for the HaXplore Hackathon, this system addresses the critical problem of fragmented rural supply chains for Occamy Bioscience. It replaces unreliable WhatsApp-based tracking with a verifiable, data-driven mobile platform for field officers.
 
+Our Team :
+Ganga Lodhiyal: Lead Developer (Backend Logic, GPS API Integration & Database Management).
+
+Munni Lodhiyal: Frontend Architect (UI/UX Design, Admin Dashboard Analytics & React Components).
+
+Tech Stack & Architecture:
+Frontend: React.js (Modular Components)
+
+Backend: Node.js & Express
+
+Features: Live GPS Tracking, Odometer Verification, Real-time Admin Dashboard
 
 Technical Implementation (How it Works) :
 
